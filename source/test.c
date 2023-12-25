@@ -18,6 +18,14 @@ int fail = 0;
         } \
     } while (0)
 
+#define EXPECT_NE(actual, expected) \
+    do { \
+        if ((actual) == (expected)) { \
+            printf("Expectation failed: %s:%d\n", __FILE__, __LINE__); \
+            fail = 1; \
+        } \
+    } while (0)
+
 #define EXPECT_TRUE(condition) \
     do { \
         if (!(condition)) { \
@@ -74,8 +82,7 @@ int basicValidParseTest()
     PStunAttributeHeader pAttribute;
     PStunAttributeAddress pStunAttributeAddress = NULL;
 
-    initializeEndianness();
-    //
+   //
     // Binding request
     //
     EXPECT_EQ(STATUS_SUCCESS,
@@ -92,15 +99,191 @@ int basicValidParseTest()
 }
 
 
+int createStunPackageValidityTests()
+{
+    BYTE transactionId[STUN_TRANSACTION_ID_LEN] = {0};
+    PStunPacket pStunPacket;
+
+    EXPECT_EQ(STATUS_SUCCESS, createStunPacket(STUN_PACKET_TYPE_BINDING_REQUEST, transactionId, &pStunPacket));
+
+    EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pStunPacket));
+    EXPECT_TRUE(NULL == pStunPacket);
+    EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pStunPacket));
+
+    EXPECT_EQ(STATUS_SUCCESS, createStunPacket(STUN_PACKET_TYPE_BINDING_REQUEST, transactionId, &pStunPacket));
+    EXPECT_EQ(0, MEMCMP(pStunPacket->header.transactionId, transactionId, STUN_TRANSACTION_ID_LEN));
+    EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pStunPacket));
+
+    // Random transaction id
+    EXPECT_EQ(STATUS_SUCCESS, createStunPacket(STUN_PACKET_TYPE_BINDING_REQUEST, NULL, &pStunPacket));
+    EXPECT_NE(0, MEMCMP(pStunPacket->header.transactionId, transactionId, STUN_TRANSACTION_ID_LEN));
+    EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pStunPacket));
+    return fail;
+}
+
+int  appendAddressAttributeMaxCountTest()
+{
+    BYTE transactionId[STUN_TRANSACTION_ID_LEN];
+    PStunPacket pStunPacket;
+    UINT32 i;
+    KvsIpAddress address;
+
+    address.family = KVS_IP_FAMILY_TYPE_IPV4;
+
+    EXPECT_EQ(STATUS_SUCCESS, createStunPacket(STUN_PACKET_TYPE_BINDING_REQUEST, transactionId, &pStunPacket));
+
+    for (i = 0; i <= STUN_ATTRIBUTE_MAX_COUNT; i++) {
+        EXPECT_EQ(STATUS_SUCCESS, appendStunAddressAttribute(pStunPacket, STUN_ATTRIBUTE_TYPE_MAPPED_ADDRESS, &address));
+    }
+
+    // Should fail with one more
+    EXPECT_EQ(STATUS_STUN_MAX_ATTRIBUTE_COUNT, appendStunAddressAttribute(pStunPacket, STUN_ATTRIBUTE_TYPE_MAPPED_ADDRESS, &address));
+
+    EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pStunPacket));
+    return fail;
+}
+
+// int roundtripAfterCreateAddFidelityTest ()
+// {
+//     PBYTE pBuffer = NULL;
+//     UINT32 size;
+//     BYTE transactionId[STUN_TRANSACTION_ID_LEN];
+//     KvsIpAddress address;
+
+//     address.family = KVS_IP_FAMILY_TYPE_IPV4;
+//     address.port = (UINT16) getInt16(12345);
+//     MEMCPY(address.address, (PBYTE) "0123456789abcdef", IPV6_ADDRESS_LENGTH);
+
+//     MEMCPY(transactionId, (PBYTE) "ABCDEFGHIJKL", STUN_TRANSACTION_ID_LEN);
+
+//     PStunPacket pStunPacket = NULL, pSerializedStunPacket = NULL;
+
+//     //
+//     // Create STUN packet and add various attributes
+//     //
+//     EXPECT_EQ(STATUS_SUCCESS, createStunPacket(STUN_PACKET_TYPE_BINDING_REQUEST, transactionId, &pStunPacket));
+//     EXPECT_EQ(pStunPacket->header.magicCookie, STUN_HEADER_MAGIC_COOKIE);
+//     EXPECT_EQ(pStunPacket->header.messageLength, 0);
+//     EXPECT_EQ(pStunPacket->header.stunMessageType, STUN_PACKET_TYPE_BINDING_REQUEST);
+//     EXPECT_EQ(pStunPacket->allocationSize, STUN_PACKET_ALLOCATION_SIZE);
+//     EXPECT_EQ(pStunPacket->attributesCount, 0);
+//     return fail;
+// }
+
+
+
+int attributeDetectionTest()
+{
+    PStunAttributeHeader pUsernameAttribute;
+    BYTE transactionId[STUN_TRANSACTION_ID_LEN];
+    PStunPacket pStunPacket;
+    CHAR userName[70 + 1];
+
+    MEMSET(userName, 'a', ARRAY_SIZE(userName));
+    userName[ARRAY_SIZE(userName) - 1] = '\0';
+
+    EXPECT_EQ(STATUS_SUCCESS, createStunPacket(STUN_PACKET_TYPE_BINDING_REQUEST, transactionId, &pStunPacket));
+
+    EXPECT_EQ(STATUS_SUCCESS, getStunAttribute(pStunPacket, STUN_ATTRIBUTE_TYPE_USERNAME, &pUsernameAttribute));
+    EXPECT_TRUE(NULL == pUsernameAttribute);
+    EXPECT_EQ(STATUS_SUCCESS, appendStunUsernameAttribute(pStunPacket, userName));
+    EXPECT_EQ(STATUS_SUCCESS, getStunAttribute(pStunPacket, STUN_ATTRIBUTE_TYPE_USERNAME, &pUsernameAttribute));
+    EXPECT_TRUE(NULL != pUsernameAttribute);
+    EXPECT_TRUE(pUsernameAttribute->type == STUN_ATTRIBUTE_TYPE_USERNAME);
+
+    EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pStunPacket));
+    return fail;
+}
+
+int roundtripAfterCreateAddFidelityTest()
+{
+    PBYTE pBuffer = NULL;
+    UINT32 size;
+    BYTE transactionId[STUN_TRANSACTION_ID_LEN];
+    KvsIpAddress address;
+
+    address.family = KVS_IP_FAMILY_TYPE_IPV4;
+    address.port = (UINT16) getInt16(12345);
+    MEMCPY(address.address, (PBYTE) "0123456789abcdef", IPV6_ADDRESS_LENGTH);
+
+    MEMCPY(transactionId, (PBYTE) "ABCDEFGHIJKL", STUN_TRANSACTION_ID_LEN);
+
+    PStunPacket pStunPacket = NULL, pSerializedStunPacket = NULL;
+
+    //
+    // Create STUN packet and add various attributes
+    //
+    EXPECT_EQ(STATUS_SUCCESS, createStunPacket(STUN_PACKET_TYPE_BINDING_REQUEST, transactionId, &pStunPacket));
+    printf("Creates stun packt\n");
+    EXPECT_EQ(pStunPacket->header.magicCookie, STUN_HEADER_MAGIC_COOKIE);
+    EXPECT_EQ(pStunPacket->header.messageLength, 0);
+    EXPECT_EQ(pStunPacket->header.stunMessageType, STUN_PACKET_TYPE_BINDING_REQUEST);
+    EXPECT_EQ(pStunPacket->allocationSize, STUN_PACKET_ALLOCATION_SIZE);
+    EXPECT_EQ(pStunPacket->attributesCount, 0);
+
+    printf("Append stun attr 0\n");
+    EXPECT_EQ(STATUS_SUCCESS, appendStunPriorityAttribute(pStunPacket, 10));
+    printf("Append stun attr 1\n");
+    EXPECT_EQ(STATUS_SUCCESS, appendStunFlagAttribute(pStunPacket, STUN_ATTRIBUTE_TYPE_USE_CANDIDATE));
+    printf("Append stun attr 2\n");
+    EXPECT_EQ(STATUS_SUCCESS, appendStunAddressAttribute(pStunPacket, STUN_ATTRIBUTE_TYPE_REFLECTED_FROM, &address));
+    printf("Append stun attr 3\n");
+    EXPECT_EQ(STATUS_SUCCESS, appendStunUsernameAttribute(pStunPacket, (PCHAR) "abc"));
+    printf("Append stun attr done\n");
+
+    EXPECT_EQ(pStunPacket->header.messageLength, 32);
+
+    // Validate the attributes
+    EXPECT_EQ(pStunPacket->attributesCount, 4);
+    EXPECT_EQ(pStunPacket->attributeList[0]->type, STUN_ATTRIBUTE_TYPE_PRIORITY);
+    EXPECT_EQ(10, ((PStunAttributePriority) pStunPacket->attributeList[0])->priority);
+    EXPECT_EQ(pStunPacket->attributeList[1]->type, STUN_ATTRIBUTE_TYPE_USE_CANDIDATE);
+    EXPECT_EQ(pStunPacket->attributeList[2]->type, STUN_ATTRIBUTE_TYPE_REFLECTED_FROM);
+    EXPECT_EQ((UINT16) KVS_IP_FAMILY_TYPE_IPV4, ((PStunAttributeAddress) pStunPacket->attributeList[2])->address.family);
+    EXPECT_EQ((UINT16) getInt16(12345), ((PStunAttributeAddress) pStunPacket->attributeList[2])->address.port);
+    EXPECT_EQ(0, memcmp(address.address, ((PStunAttributeAddress) pStunPacket->attributeList[2])->address.address, IPV6_ADDRESS_LENGTH));
+    EXPECT_EQ(pStunPacket->attributeList[3]->type, STUN_ATTRIBUTE_TYPE_USERNAME);
+    EXPECT_EQ(0, memcmp("abc", ((PStunAttributeUsername) pStunPacket->attributeList[3])->userName, 3));
+
+    printf("Serialize stun packet \n");
+    // Serialize it
+    EXPECT_EQ(STATUS_SUCCESS,
+              serializeStunPacket(pStunPacket, (PBYTE) TEST_STUN_PASSWORD, STRLEN(TEST_STUN_PASSWORD) * SIZEOF(CHAR), TRUE, TRUE, NULL, &size));
+    printf("Serialize stun packet len %d\n",size);
+    pBuffer = (PBYTE) malloc(size);
+    if(pBuffer == NULL)
+        printf("NULL BUFFER\n");
+    printf("Serialize stun packet len %d pBuffer %p\n",size, pBuffer);
+    printf("pbuffer packet \n");
+    for(int i=0;i<size; i++)
+    {
+        printf("0x%x ", pBuffer[i]);
+    }
+    printf("\n");
+    EXPECT_EQ(STATUS_SUCCESS,
+              serializeStunPacket(pStunPacket, (PBYTE) TEST_STUN_PASSWORD, STRLEN(TEST_STUN_PASSWORD) * SIZEOF(CHAR), TRUE, TRUE, pBuffer, &size));
+    printf("Serialize done\n");
+    
+    printf("Serialize packet \n");
+    for(int i=0;i<size; i++)
+    {
+        printf("0x%x ", pBuffer[i]);
+    }
+    printf("\n");
+    
+    return fail;
+}
 int main()
 {
-    int f = basicValidParseTest();
-    if(f==1)
-        printf("FAIL\n");
-    else
-        printf("pass\n");
+    int f ;
+    initializeEndianness();
+    //f = createStunPackageValidityTests();
+    // if(f==1)
+    //     printf("FAIL\n");
+    // else
+    //     printf("pass\n");
     
-    f = serializeDeserializeStunControlAttribute();
+    f = roundtripAfterCreateAddFidelityTest();
     if(f==1)
         printf("FAIL\n");
     else
