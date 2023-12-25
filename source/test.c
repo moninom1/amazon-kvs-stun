@@ -253,13 +253,7 @@ int roundtripAfterCreateAddFidelityTest()
     pBuffer = (PBYTE) malloc(size);
     if(pBuffer == NULL)
         printf("NULL BUFFER\n");
-    printf("Serialize stun packet len %d pBuffer %p\n",size, pBuffer);
-    printf("pbuffer packet \n");
-    for(int i=0;i<size; i++)
-    {
-        printf("0x%x ", pBuffer[i]);
-    }
-    printf("\n");
+
     EXPECT_EQ(STATUS_SUCCESS,
               serializeStunPacket(pStunPacket, (PBYTE) TEST_STUN_PASSWORD, STRLEN(TEST_STUN_PASSWORD) * SIZEOF(CHAR), TRUE, TRUE, pBuffer, &size));
     printf("Serialize done\n");
@@ -267,9 +261,37 @@ int roundtripAfterCreateAddFidelityTest()
     printf("Serialize packet \n");
     for(int i=0;i<size; i++)
     {
-        printf("0x%x ", pBuffer[i]);
+        printf("0x%02x ", pBuffer[i]);
     }
     printf("\n");
+
+    // De-serialize it back again
+    EXPECT_EQ(
+        STATUS_SUCCESS,
+        deserializeStunPacket(pBuffer, size, (PBYTE) TEST_STUN_PASSWORD, (UINT32) STRLEN(TEST_STUN_PASSWORD) * SIZEOF(CHAR), &pSerializedStunPacket));
+
+    EXPECT_EQ(pSerializedStunPacket->header.magicCookie, STUN_HEADER_MAGIC_COOKIE);
+    EXPECT_EQ(pSerializedStunPacket->header.messageLength, 64);
+    EXPECT_EQ(pSerializedStunPacket->header.stunMessageType, STUN_PACKET_TYPE_BINDING_REQUEST);
+
+    // Validate the values
+    printf(" pSerializedStunPacket->attributesCount %d\n",pSerializedStunPacket->attributesCount);
+    EXPECT_EQ(pSerializedStunPacket->attributesCount, 6);
+    EXPECT_EQ(pSerializedStunPacket->attributeList[0]->type, STUN_ATTRIBUTE_TYPE_PRIORITY);
+    EXPECT_EQ(10, ((PStunAttributePriority) pSerializedStunPacket->attributeList[0])->priority);
+    EXPECT_EQ(pSerializedStunPacket->attributeList[1]->type, STUN_ATTRIBUTE_TYPE_USE_CANDIDATE);
+    EXPECT_EQ(pSerializedStunPacket->attributeList[2]->type, STUN_ATTRIBUTE_TYPE_REFLECTED_FROM);
+    EXPECT_EQ((UINT16) KVS_IP_FAMILY_TYPE_IPV4, ((PStunAttributeAddress) pSerializedStunPacket->attributeList[2])->address.family);
+    EXPECT_EQ(12345, (UINT16) getInt16(((PStunAttributeAddress) pSerializedStunPacket->attributeList[2])->address.port));
+    EXPECT_EQ(0, MEMCMP(address.address, ((PStunAttributeAddress) pSerializedStunPacket->attributeList[2])->address.address, IPV4_ADDRESS_LENGTH));
+    EXPECT_EQ(pSerializedStunPacket->attributeList[3]->type, STUN_ATTRIBUTE_TYPE_USERNAME);
+    EXPECT_EQ(0, MEMCMP("abc", ((PStunAttributeUsername) pSerializedStunPacket->attributeList[3])->userName, 3));
+    EXPECT_EQ(pSerializedStunPacket->attributeList[4]->type, STUN_ATTRIBUTE_TYPE_MESSAGE_INTEGRITY);
+    EXPECT_EQ(pSerializedStunPacket->attributeList[5]->type, STUN_ATTRIBUTE_TYPE_FINGERPRINT);
+
+    EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pStunPacket));
+    EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pSerializedStunPacket));
+    SAFE_MEMFREE(pBuffer);
     
     return fail;
 }
