@@ -1097,6 +1097,7 @@ typedef UINT64 HANDLE;
     do {                                                                                                                                             \
         if (!(condition)) {                                                                                                                          \
             retStatus = (errRet);                                                                                                                    \
+            printf("Expectation failed: %s:%d\n", __FILE__, __LINE__); \
             goto CleanUp;                                                                                                                            \
         }                                                                                                                                            \
     } while (FALSE)

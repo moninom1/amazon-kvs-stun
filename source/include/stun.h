@@ -357,6 +357,14 @@ typedef struct {
  *
  * NOTE: The allocations will follow the main structure.
  */
+
+typedef struct StunContext
+{
+    char * pStart;
+    size_t remLength;
+    uint8_t currentIndex;
+} StunContext_t, *PStunContext_t;
+
 typedef struct {
     // Stun header
     StunHeader header;
@@ -370,8 +378,24 @@ typedef struct {
     // Stun attributes
     PStunAttributeHeader* attributeList;
 
-    PBYTE ctx;
+    StunContext_t ctx;
 } StunPacket, *PStunPacket;
+
+
+typedef struct {
+    // Stun header
+    StunHeader header;
+
+    // Number of attributes in the list
+    UINT32 attributesCount;
+
+    // The entire structure allocation size
+    UINT32 allocationSize;
+
+    // Stun attributes
+    PStunAttributeHeader* attributeList;
+} oStunPacket, *oPStunPacket;
+
 
 STATUS serializeStunPacket(PStunPacket, PBYTE, UINT32, BOOL, BOOL, PBYTE, PUINT32);
 STATUS deserializeStunPacket(PBYTE, UINT32, PBYTE, UINT32, PStunPacket*);

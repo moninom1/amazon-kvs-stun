@@ -218,6 +218,7 @@ VOID initializeEndianness()
 {
     if (isBigEndian()) {
         // Big-endian
+        printf("Big-endian\n");
         g_BigEndian = TRUE;
 
         getInt16 = getInt16NoSwap;
@@ -230,6 +231,7 @@ VOID initializeEndianness()
 
     } else {
         // Little-endian
+        printf("Little-endian\n");
         g_BigEndian = FALSE;
 
         getInt16 = getInt16Swap;
