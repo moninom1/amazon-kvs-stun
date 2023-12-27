@@ -20,11 +20,17 @@ StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
 StunResult_t StunSerializer_AddAttributePriority( StunSerializerContext_t * pCtx,
                                                   uint32_t priority );
 
+StunResult_t StunSerializer_AddAttributeUserName( StunSerializerContext_t * pCtx,
+                                                    char * name );
+
 /* StunSerializer_AddAttributeFingerprint,
  * StunSerializer_AddAttributeIntegrity,
  * StunSerializer_AddAttributeRealm,
  * StunSerializer_AddAttributeNonce,
  *  ... */
+
+StunResult_t checkFingerprintIntegrityFound( const char *pAttributeBuffer, size_t len );
+
 StunResult_t StunSerializer_Finalize( StunSerializerContext_t * pCtx,
                                       const uint8_t ** pStunMessage,
                                       size_t * pStunMessageLength );

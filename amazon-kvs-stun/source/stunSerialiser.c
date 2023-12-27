@@ -25,8 +25,14 @@
 
 #define REMAINING_BUFFER_LENGTH( pCtx ) ( ( pCtx )->totalLength - ( pCtx )->currentIndex )
 
-#define SERIALIZE_UINT16( pDst, val )   ( *((uint16_t*)(pDst)) = val )
-#define SERIALIZE_UINT32( pDst, val )   ( *((uint32_t*)(pDst)) = val )
+#define SET_UINT16( pDst, val )   ( *((uint16_t*)(pDst)) = val )
+#define SET_UINT32( pDst, val )   ( *((uint32_t*)(pDst)) = val )
+
+#define GET_UINT16( val, pSrc )   ( val = *((uint16_t*)(pSrc)))
+#define GET_UINT32( val, pSrc )   ( val = *((uint32_t*)(pSrc)) )
+
+// 4 Bytes alignement
+#define ALIGN_SIZE(size)    (((size) + (4) -1) & ~((4) -1))
 
 /*
        0                   1                   2                   3
@@ -40,8 +46,6 @@
 #define STUN_ATTRIBUTE_HEADER_LENGTH 4
 #define STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET  2
 #define STUN_ATTRIBUTE_HEADER_VALUE_OFFSET   4
-
-#define STUN_ATTRIBUTE_PRIORITY_TYPE    0x0024
 
 /*-----------------------------------------------------------*/
 
@@ -117,13 +121,13 @@ StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
 
     if( result == STUN_RESULT_OK )
     {
-        SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), StunMessageTypeToCode( stunPacketType ));
+        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), StunMessageTypeToCode( stunPacketType ));
 
         /* Message length is updated in the end. */
-        SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_MESSAGE_LENGTH_OFFSET ] ),
+        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_MESSAGE_LENGTH_OFFSET ] ),
                           0 );
 
-        SERIALIZE_UINT32( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_MAGIC_COOKIE_OFFSET ] ),
+        SET_UINT32( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_MAGIC_COOKIE_OFFSET ] ),
                           STUN_HEADER_MAGIC_COOKIE );
 
         memcpy( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_TRANSACTION_ID_OFFSET ] ),
@@ -156,12 +160,12 @@ StunResult_t StunSerializer_AddAttributePriority( StunSerializerContext_t * pCtx
 
     if( result == STUN_RESULT_OK )
     {
-        SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), STUN_ATTRIBUTE_PRIORITY_TYPE );
+        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), STUN_ATTRIBUTE_PRIORITY_TYPE );
 
-        SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
+        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
                           sizeof( priority ) );
 
-        SERIALIZE_UINT32( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ),
+        SET_UINT32( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ),
                            priority );
 
         pCtx->currentIndex += ( sizeof( priority ) + STUN_ATTRIBUTE_HEADER_LENGTH );
@@ -170,6 +174,80 @@ StunResult_t StunSerializer_AddAttributePriority( StunSerializerContext_t * pCtx
     return result;
 }
 /*-----------------------------------------------------------*/
+
+StunResult_t StunSerializer_AddAttributeUserName( StunSerializerContext_t * pCtx,
+                                                    char * userName )
+{
+    StunResult_t result = STUN_RESULT_OK;
+    uint16_t length, paddedLength;
+    uint32_t userNameAttributeLen;
+
+    if( ( pCtx == NULL ) ||
+         ( userName == NULL ) )
+    {
+        result = STUN_RESULT_BAD_PARAM;
+    }
+
+    length = (uint16_t) strlen(userName);
+    paddedLength = ALIGN_SIZE(length);
+    userNameAttributeLen = paddedLength + STUN_ATTRIBUTE_HEADER_LENGTH ;
+
+    if( result == STUN_RESULT_OK )
+    {
+        if( REMAINING_BUFFER_LENGTH( pCtx ) < userNameAttributeLen )
+        {
+            result = STUN_RESULT_OUT_OF_MEMORY;
+        }
+    }
+
+    if( result == STUN_RESULT_OK )
+    {
+        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), STUN_ATTRIBUTE_USERNAME_TYPE );
+
+        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
+                          paddedLength );
+
+        memcpy( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ), userName, paddedLength);
+
+        pCtx->currentIndex += paddedLength + STUN_ATTRIBUTE_HEADER_LENGTH;
+    }
+     checkFingerprintIntegrityFound( &(pCtx->pStart[STUN_MESSAGE_HEADER_LENGTH]) , pCtx->currentIndex);
+
+    return result;
+}
+
+/*-----------------------------------------------------------*/
+
+StunResult_t checkFingerprintIntegrityFound( const char *pAttributeBuffer , size_t len)
+{
+    StunResult_t result = STUN_RESULT_OK;
+    uint16_t type, attributeLen;
+    int currentIndex = 0;
+
+    //Atribute header is present
+    while( currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH < len)
+    {
+        //Get Attribute Type
+        GET_UINT16(type, &(pAttributeBuffer[currentIndex]));
+        GET_UINT16(attributeLen, &(pAttributeBuffer[currentIndex+STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET]));
+
+        if(type == 0)
+        {
+            //No more attribute
+            break;
+        }
+
+        if(type == STUN_ATTRIBUTE_FINGERPRINT || type == STUN_ATTRIBUTE_MESSAGE_INTEGRITY)
+        {
+            result = STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY;
+            break;
+        }
+        currentIndex += STUN_ATTRIBUTE_HEADER_LENGTH + attributeLen;
+
+    }
+    return result;
+
+}
 
 StunResult_t StunSerializer_Finalize( StunSerializerContext_t * pCtx,
                                       const uint8_t ** pStunMessage,
@@ -186,7 +264,7 @@ StunResult_t StunSerializer_Finalize( StunSerializerContext_t * pCtx,
     if( result == STUN_RESULT_OK )
     {
         /* Update the message length field in the header. */
-        SERIALIZE_UINT16( &( pCtx->pStart[ STUN_HEADER_MESSAGE_LENGTH_OFFSET ] ),
+        SET_UINT16( &( pCtx->pStart[ STUN_HEADER_MESSAGE_LENGTH_OFFSET ] ),
                           pCtx->currentIndex - STUN_MESSAGE_HEADER_LENGTH );
 
         *pStunMessage = pCtx->pStart;

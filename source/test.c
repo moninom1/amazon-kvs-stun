@@ -43,6 +43,8 @@ void printBuffer(uint8_t * pBuffer, size_t bufferLength)
     for(int i=0;i<bufferLength;i++)
     {
         printf("0x%02x ",pBuffer[i]);
+        if(i==19)
+            printf("\n");
     }
     printf("\n");
 }
@@ -158,13 +160,14 @@ int oldTest()
 int testSerialisation()
 {
     StunSerializerContext_t stunContext;
-    size_t bufferLength=30;
+    size_t bufferLength=50;
     uint8_t * pBuffer;
     uint32_t priority = 10;
     const StunHeader_t stunHeader;
     const uint8_t * pStunMessage;
     size_t stunMessageLength;
     uint8_t transactionId[STUN_TRANSACTION_ID_LEN];
+    char *userName = "Monika";
 
     memcpy(transactionId, (PBYTE) "ABCDEFGHIJKL", STUN_TRANSACTION_ID_LEN);
 
@@ -177,10 +180,11 @@ int testSerialisation()
     EXPECT_EQ(STATUS_SUCCESS, StunSerializer_Init( &stunContext, pBuffer, bufferLength ));
 
     EXPECT_EQ( STATUS_SUCCESS, StunSerializer_AddHeader( &stunContext, STUN_MESSAGE_TYPE_BINDING_REQUEST, transactionId ));
-    printBuffer(pBuffer, bufferLength);
+    printBuffer(pBuffer, 20);
 
     EXPECT_EQ( STATUS_SUCCESS, StunSerializer_AddAttributePriority( &stunContext, priority ));
-    printBuffer(pBuffer, bufferLength);
+
+    EXPECT_EQ( STATUS_SUCCESS, StunSerializer_AddAttributeUserName( &stunContext, userName ));
 
     EXPECT_EQ( STATUS_SUCCESS, StunSerializer_Finalize( &stunContext, &pStunMessage, &stunMessageLength ));
     printf("Serialised Message Length %ld\n",stunMessageLength );
