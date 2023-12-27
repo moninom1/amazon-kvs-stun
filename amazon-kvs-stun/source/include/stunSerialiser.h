@@ -15,7 +15,7 @@ StunResult_t StunSerializer_Init( StunSerializerContext_t * pCtx,
                                   size_t bufferLength );
 
 StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
-                                       const StunHeader_t * pHeader );
+                                       StunMessageType_t stunPacketType, uint8_t *transactionId );
 
 StunResult_t StunSerializer_AddAttributePriority( StunSerializerContext_t * pCtx,
                                                   uint32_t priority );

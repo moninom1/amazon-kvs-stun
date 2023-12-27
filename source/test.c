@@ -5,6 +5,8 @@
  *      Author: moninom
  */
 
+#include "stunSerialiser.h"
+#include "stunDataTypes.h"
 #include "commondefs.h"
 #include "stun.h"
 
@@ -36,6 +38,14 @@ int fail = 0;
 
 #define TEST_STUN_PASSWORD (PCHAR) "bf1f29259cea581c873248d4ae73b30f"
 
+void printBuffer(uint8_t * pBuffer, size_t bufferLength)
+{
+    for(int i=0;i<bufferLength;i++)
+    {
+        printf("0x%02x ",pBuffer[i]);
+    }
+    printf("\n");
+}
 
 int oldTest()
 {
@@ -145,13 +155,44 @@ int oldTest()
     return fail;
 }
 
+int testSerialisation()
+{
+    StunSerializerContext_t stunContext;
+    size_t bufferLength=30;
+    uint8_t * pBuffer;
+    uint32_t priority = 10;
+    const StunHeader_t stunHeader;
+    const uint8_t * pStunMessage;
+    size_t stunMessageLength;
+    uint8_t transactionId[STUN_TRANSACTION_ID_LEN];
+
+    memcpy(transactionId, (PBYTE) "ABCDEFGHIJKL", STUN_TRANSACTION_ID_LEN);
+
+    //This could be done if we do not want to waste memory
+    //bufferLength = STUN_HEADER_LEN + STUN_ATTRIBUTE_HEADER_LEN + sizeof(priority); // HEADER + Priority Attribute Header + Priority
+
+    pBuffer = malloc(bufferLength);
+    EXPECT_NE( pBuffer, NULL );
+
+    EXPECT_EQ(STATUS_SUCCESS, StunSerializer_Init( &stunContext, pBuffer, bufferLength ));
+
+    EXPECT_EQ( STATUS_SUCCESS, StunSerializer_AddHeader( &stunContext, STUN_MESSAGE_TYPE_BINDING_REQUEST, transactionId ));
+    printBuffer(pBuffer, bufferLength);
+
+    EXPECT_EQ( STATUS_SUCCESS, StunSerializer_AddAttributePriority( &stunContext, priority ));
+    printBuffer(pBuffer, bufferLength);
+
+    EXPECT_EQ( STATUS_SUCCESS, StunSerializer_Finalize( &stunContext, &pStunMessage, &stunMessageLength ));
+    printf("Serialised Message Length %ld\n",stunMessageLength );
+    printBuffer(pBuffer, stunMessageLength);
+
+}
 int main()
 {
-    int f ;
-    initializeEndianness();
+    int status;
     
-    f = roundtripAfterCreateAddFidelityTest();
-    if(f==1)
+    status = testSerialisation();
+    if(status == 1)
         printf("\n ----Result : Test Failed----\n\n");
     else
         printf("\n ----Result : Test Passed----\n\n");

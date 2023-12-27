@@ -1,3 +1,5 @@
+#include "stdio.h"
+#include <string.h>
 #include "stunSerialiser.h"
 
 /* STUN Message Header:
@@ -23,9 +25,8 @@
 
 #define REMAINING_BUFFER_LENGTH( pCtx ) ( ( pCtx )->totalLength - ( pCtx )->currentIndex )
 
-#define SERIALIZE_UINT16( pDst, val )
-#define SERIALIZE_UINT32( pDst, val )
-#define SERIALIZE_BUFFER( pDst, pSrc, srcLength )
+#define SERIALIZE_UINT16( pDst, val )   ( *((uint16_t*)(pDst)) = val )
+#define SERIALIZE_UINT32( pDst, val )   ( *((uint32_t*)(pDst)) = val )
 
 /*
        0                   1                   2                   3
@@ -96,12 +97,12 @@ StunResult_t StunSerializer_Init( StunSerializerContext_t * pCtx,
 /*-----------------------------------------------------------*/
 
 StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
-                                       const StunHeader_t * pHeader )
+                                       StunMessageType_t stunPacketType, uint8_t *pTransactionId )
 {
     StunResult_t result = STUN_RESULT_OK;
 
     if( ( pCtx == NULL ) ||
-        ( pHeader == NULL ) )
+        ( pTransactionId == NULL ) )
     {
         result = STUN_RESULT_BAD_PARAM;
     }
@@ -116,8 +117,7 @@ StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
 
     if( result == STUN_RESULT_OK )
     {
-        SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ),
-                          StunMessageTypeToCode( pHeader->stunMessageType ) );
+        SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), StunMessageTypeToCode( stunPacketType ));
 
         /* Message length is updated in the end. */
         SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_MESSAGE_LENGTH_OFFSET ] ),
@@ -126,9 +126,8 @@ StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
         SERIALIZE_UINT32( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_MAGIC_COOKIE_OFFSET ] ),
                           STUN_HEADER_MAGIC_COOKIE );
 
-        SERIALIZE_BUFFER( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_TRANSACTION_ID_OFFSET ] ),
-                          &( pHeader->transactionId[ 0 ] ),
-                          STUN_TRANSACTION_ID_LENGTH );
+        memcpy( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_TRANSACTION_ID_OFFSET ] ),
+                          pTransactionId, STUN_TRANSACTION_ID_LENGTH );
 
         pCtx->currentIndex += STUN_MESSAGE_HEADER_LENGTH;
     }
@@ -157,8 +156,7 @@ StunResult_t StunSerializer_AddAttributePriority( StunSerializerContext_t * pCtx
 
     if( result == STUN_RESULT_OK )
     {
-        SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ),
-                          STUN_ATTRIBUTE_PRIORITY_TYPE );
+        SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), STUN_ATTRIBUTE_PRIORITY_TYPE );
 
         SERIALIZE_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
                           sizeof( priority ) );
@@ -180,7 +178,6 @@ StunResult_t StunSerializer_Finalize( StunSerializerContext_t * pCtx,
     StunResult_t result = STUN_RESULT_OK;
 
     if( ( pCtx == NULL ) ||
-        ( pStunMessage == NULL ) ||
         ( pStunMessageLength == NULL ) )
     {
         result = STUN_RESULT_BAD_PARAM;
@@ -195,5 +192,7 @@ StunResult_t StunSerializer_Finalize( StunSerializerContext_t * pCtx,
         *pStunMessage = pCtx->pStart;
         *pStunMessageLength = pCtx->currentIndex;
     }
+
+    return result;
 }
 /*-----------------------------------------------------------*/
