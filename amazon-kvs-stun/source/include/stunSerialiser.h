@@ -20,8 +20,7 @@ StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
 StunResult_t StunSerializer_AddAttributePriority( StunSerializerContext_t * pCtx,
                                                   uint32_t priority );
 
-StunResult_t StunSerializer_AddAttributeUserName( StunSerializerContext_t * pCtx,
-                                                    char * name );
+StunResult_t StunSerializer_AddAttributeUserName( StunSerializerContext_t * pCtx, char * name, uint16_t usernameLen );
 
 /* StunSerializer_AddAttributeFingerprint,
  * StunSerializer_AddAttributeIntegrity,

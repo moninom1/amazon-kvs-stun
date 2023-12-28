@@ -1,5 +1,6 @@
 #define LOG_CLASS "Stun"
 //#include "../Include_i.h"
+#include "stunSerialiser.h"
 
 
 #include "stun.h"
@@ -556,6 +557,145 @@ CleanUp:
     return retStatus;
 }
 
+STATUS serializeStunPacket_new(PStunPacket pStunPacket, PBYTE password, UINT32 passwordLen, BOOL generateMessageIntegrity, BOOL generateFingerprint,
+                                        PBYTE pBuffer, PUINT32 pSize)
+
+{
+    STATUS retStatus = STATUS_SUCCESS;
+    StunSerializerContext_t stunContext;
+    UINT32 i, encodedLen = 0, packetSize = 0;
+    UINT16 size, stunMessageLength =0;
+    PStunAttributeHeader pStunAttributeHeader;
+    PStunAttributeUsername pStunAttributeUsername;
+    PStunAttributePriority pStunAttributePriority;
+    BOOL fingerprintFound = FALSE, messaageIntegrityFound = FALSE;
+    const uint8_t * pStunMessage;
+
+    CHK(pStunPacket != NULL && (!generateMessageIntegrity || password != NULL) && pSize != NULL, STATUS_NULL_ARG);
+    
+    CHK(password == NULL || passwordLen != 0, STATUS_INVALID_ARG);
+    
+    CHK(pStunPacket->header.magicCookie == STUN_HEADER_MAGIC_COOKIE, STATUS_STUN_MAGIC_COOKIE_MISMATCH);
+    packetSize += STUN_HEADER_LEN;
+
+    if( pBuffer == NULL)
+    {
+        for (i = 0; i < pStunPacket->attributesCount; i++) 
+        {
+        
+            // Get the next attribute
+            pStunAttributeHeader = pStunPacket->attributeList[i];
+
+            // Set the encoded length to zero before iteration
+            encodedLen = 0;
+
+            switch (pStunAttributeHeader->type) 
+            {
+
+                case STUN_ATTRIBUTE_TYPE_USERNAME:
+                    
+                    pStunAttributeUsername = (PStunAttributeUsername) pStunAttributeHeader;
+
+                    encodedLen = STUN_ATTRIBUTE_HEADER_LEN + pStunAttributeUsername->paddedLength;
+
+                    CHK(!fingerprintFound && !messaageIntegrityFound, STATUS_STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY);
+
+                    break;
+
+                case STUN_ATTRIBUTE_TYPE_PRIORITY:
+                    
+                    pStunAttributePriority = (PStunAttributePriority) pStunAttributeHeader;
+
+                    encodedLen = STUN_ATTRIBUTE_HEADER_LEN + STUN_ATTRIBUTE_PRIORITY_LEN;
+
+                    CHK(!fingerprintFound && !messaageIntegrityFound, STATUS_STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY);
+
+                    break;
+
+                default:
+                    // Do nothing
+                    break;
+            }
+            
+            // Increment the overall package size
+            packetSize += encodedLen;
+        }
+    
+        // Check if we need to generate the message integrity attribute
+        if (generateMessageIntegrity && pBuffer == NULL) {
+            encodedLen = STUN_ATTRIBUTE_HEADER_LEN + STUN_HMAC_VALUE_LEN;
+            packetSize += encodedLen;
+        }
+
+        // Check if we need to generate the fingerprint attribute
+        if (generateFingerprint && pBuffer == NULL) {
+            encodedLen = STUN_ATTRIBUTE_HEADER_LEN + STUN_ATTRIBUTE_FINGERPRINT_LEN;
+            packetSize += encodedLen;
+        }
+    }
+
+    if(pBuffer != NULL)
+    {
+        CHK_STATUS(StunSerializer_Init( &stunContext, pBuffer, *pSize ));
+        
+        CHK_STATUS(StunSerializer_AddHeader( &stunContext, pStunPacket->header.stunMessageType, pStunPacket->header.transactionId ));
+
+        for (i = 0; i < pStunPacket->attributesCount; i++) {
+            
+            // Get the next attribute
+            pStunAttributeHeader = pStunPacket->attributeList[i];
+
+            // Set the encoded length to zero before iteration
+            encodedLen = 0;
+
+            switch (pStunAttributeHeader->type) {
+
+                case STUN_ATTRIBUTE_TYPE_USERNAME:
+
+                pStunAttributeUsername = (PStunAttributeUsername) pStunAttributeHeader;
+
+                CHK(!fingerprintFound && !messaageIntegrityFound, STATUS_STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY);
+
+                StunSerializer_AddAttributeUserName(&stunContext, pStunAttributeUsername + 1 , pStunAttributeUsername->paddedLength);
+
+                break;
+
+                case STUN_ATTRIBUTE_TYPE_PRIORITY:
+                    
+                    pStunAttributePriority = (PStunAttributePriority) pStunAttributeHeader;
+
+                    CHK(!fingerprintFound && !messaageIntegrityFound, STATUS_STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY);
+
+                    StunSerializer_AddAttributePriority(&stunContext, pStunAttributePriority->priority);
+
+                    break;
+
+                default:
+                    // Do nothing
+                    break;
+            }
+        }
+
+        if (generateMessageIntegrity ) {
+            //StunSerializer_AddAttributeMessageIntegrity
+        }
+
+        if (generateFingerprint) {
+            //StunSerializer_AddAttributeFingerprint
+        }
+
+        StunSerializer_Finalize( &stunContext, &pStunMessage, &stunMessageLength );
+    }
+    
+CleanUp:
+
+    if (STATUS_SUCCEEDED(retStatus) && pSize != NULL && pBuffer== NULL) {
+        *pSize = packetSize;
+    }
+
+
+    return retStatus;
+}
 
 STATUS deserializeStunPacket(PBYTE pStunBuffer, UINT32 bufferSize, PBYTE password, UINT32 passwordLen, PStunPacket* ppStunPacket)
 {
@@ -1049,7 +1189,6 @@ STATUS deserializeStunPacket(PBYTE pStunBuffer, UINT32 bufferSize, PBYTE passwor
                 break;
 
             case STUN_ATTRIBUTE_TYPE_FINGERPRINT:
-                printf("mylog %d",__LINE__);
                 pStunAttributeFingerprint = (PStunAttributeFingerprint) pDestAttribute;
 
                 // Copy the use fingerprint value
@@ -1075,6 +1214,203 @@ STATUS deserializeStunPacket(PBYTE pStunBuffer, UINT32 bufferSize, PBYTE passwor
                 CHK(crc32 == pStunAttributeFingerprint->crc32Fingerprint, STATUS_STUN_FINGERPRINT_MISMATCH);
 
                 break;
+
+            default:
+                // Skip over the unknown attributes
+                break;
+        }
+
+        // Increment the attributes pointer and account for the length
+        pStunAttributeHeader = (PStunAttributeHeader) ((PBYTE) pStunAttributeHeader + STUN_ATTRIBUTE_HEADER_LEN + paddedLength);
+
+        // Set the destination
+        pDestAttribute = (PStunAttributeHeader) ((PBYTE) pDestAttribute + attributeSize);
+    }
+
+CleanUp:
+
+    if (STATUS_FAILED(retStatus)) {
+        freeStunPacket(&pStunPacket);
+    }
+
+    if (ppStunPacket != NULL) {
+        *ppStunPacket = pStunPacket;
+    }
+
+    CHK_LOG_ERR(retStatus);
+
+    return retStatus;
+}
+
+STATUS deserializeStunPacket_new(PBYTE pStunBuffer, UINT32 bufferSize, PBYTE password, UINT32 passwordLen, PStunPacket* ppStunPacket)
+{
+    STATUS retStatus = STATUS_SUCCESS;
+    UINT32 attributeCount = 0, allocationSize, attributeSize, i = 0, j, magicCookie, hmacLen, crc32, data;
+    UINT32 stunMagicCookie = STUN_HEADER_MAGIC_COOKIE;
+    UINT16 size, paddedLength, ipFamily, messageLength;
+    INT64 data64;
+    PStunAttributeHeader pStunAttributeHeader, pStunAttributes, pDestAttribute;
+    PStunHeader pStunHeader = (PStunHeader) pStunBuffer;
+    PStunPacket pStunPacket = NULL;
+    StunAttributeHeader stunAttributeHeader;
+    PStunAttributeAddress pStunAttributeAddress;
+    PStunAttributeUsername pStunAttributeUsername;
+    PStunAttributeMessageIntegrity pStunAttributeMessageIntegrity;
+    PStunAttributeFingerprint pStunAttributeFingerprint;
+    PStunAttributePriority pStunAttributePriority;
+    PStunAttributeLifetime pStunAttributeLifetime;
+    PStunAttributeChangeRequest pStunAttributeChangeRequest;
+    PStunAttributeRequestedTransport pStunAttributeRequestedTransport;
+    PStunAttributeRealm pStunAttributeRealm;
+    PStunAttributeNonce pStunAttributeNonce;
+    PStunAttributeErrorCode pStunAttributeErrorCode;
+    PStunAttributeIceControl pStunAttributeIceControl;
+    PStunAttributeData pStunAttributeData;
+    PStunAttributeChannelNumber pStunAttributeChannelNumber;
+    BOOL fingerprintFound = FALSE, messaageIntegrityFound = FALSE;
+    PBYTE pData, pTransaction;
+
+    CHK(pStunBuffer != NULL && ppStunPacket != NULL, STATUS_NULL_ARG);
+    CHK(bufferSize >= STUN_HEADER_LEN, STATUS_INVALID_ARG);
+
+    if (!isBigEndian()) {
+        stunMagicCookie = STUN_HEADER_MAGIC_COOKIE_LE;
+    }
+
+    // Copy and fix-up the header
+    messageLength = (UINT16) getInt16(*(PUINT16) ((PBYTE) pStunHeader + STUN_HEADER_TYPE_LEN));
+    magicCookie = (UINT32) getInt32(*(PUINT32) ((PBYTE) pStunHeader + STUN_HEADER_TYPE_LEN + STUN_HEADER_DATA_LEN));
+
+    // Validate the specified size
+    CHK(bufferSize >= messageLength + STUN_HEADER_LEN, STATUS_INVALID_ARG);
+
+    // Validate the magic cookie
+    CHK(magicCookie == STUN_HEADER_MAGIC_COOKIE, STATUS_STUN_MAGIC_COOKIE_MISMATCH);
+
+    // Calculate the required size by getting the number of attributes
+    pStunAttributes = (PStunAttributeHeader) (pStunBuffer + STUN_HEADER_LEN);
+    pStunAttributeHeader = pStunAttributes;
+    allocationSize = SIZEOF(StunPacket);
+    while ((PBYTE) pStunAttributeHeader < (PBYTE) pStunAttributes + messageLength) {
+        // Copy/Swap tne attribute header
+        stunAttributeHeader.type = (STUN_ATTRIBUTE_TYPE) getInt16(*(PUINT16) pStunAttributeHeader);
+        stunAttributeHeader.length = (UINT16) getInt16(*(PUINT16) ((PBYTE) pStunAttributeHeader + STUN_ATTRIBUTE_HEADER_TYPE_LEN));
+
+        // Zero out for before iteration
+        attributeSize = 0;
+
+        // Calculate the padded size
+        paddedLength = (UINT16) ROUND_UP(stunAttributeHeader.length, 4);
+
+        // Check the type, get the allocation size and validate the length for each attribute
+        switch (stunAttributeHeader.type) {
+
+            case STUN_ATTRIBUTE_TYPE_USERNAME:
+                attributeSize = SIZEOF(StunAttributeUsername);
+
+                // Validate the size of the length against the max value of username
+                CHK(stunAttributeHeader.length <= STUN_MAX_USERNAME_LEN, STATUS_STUN_INVALID_USERNAME_ATTRIBUTE_LENGTH);
+                CHK(!fingerprintFound && !messaageIntegrityFound, STATUS_STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY);
+
+                // Add the length of the string itself
+                attributeSize += paddedLength;
+                break;
+
+            case STUN_ATTRIBUTE_TYPE_PRIORITY:
+                attributeSize = SIZEOF(StunAttributePriority);
+
+                CHK(stunAttributeHeader.length == STUN_ATTRIBUTE_PRIORITY_LEN, STATUS_STUN_INVALID_PRIORITY_ATTRIBUTE_LENGTH);
+                CHK(!fingerprintFound && !messaageIntegrityFound, STATUS_STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY);
+
+                break;
+
+
+            default:
+                // Do nothing - skip and decrement the count as it will be incremented below anyway
+                attributeCount--;
+                break;
+        }
+
+        allocationSize += attributeSize;
+        attributeCount++;
+
+        CHK(attributeCount <= STUN_ATTRIBUTE_MAX_COUNT, STATUS_STUN_MAX_ATTRIBUTE_COUNT);
+
+        // Increment the attributes pointer and account for the length
+        pStunAttributeHeader = (PStunAttributeHeader) ((PBYTE) pStunAttributeHeader + STUN_ATTRIBUTE_HEADER_LEN + paddedLength);
+    }
+
+    // Account for the attribute pointer array
+    allocationSize += attributeCount * SIZEOF(PStunAttributeHeader);
+
+    printf("Allocation size = %d\n", allocationSize);
+
+    // Allocate the necessary storage and set the pointers for the attributes
+    CHK(NULL != (pStunPacket = MEMCALLOC(1, allocationSize)), STATUS_NOT_ENOUGH_MEMORY);
+
+    // Copy/swap the header
+    pStunPacket->header.stunMessageType = (UINT16) getInt16(pStunHeader->stunMessageType);
+    pStunPacket->header.messageLength = messageLength;
+    pStunPacket->header.magicCookie = magicCookie;
+    MEMCPY(pStunPacket->header.transactionId, pStunHeader->transactionId, STUN_TRANSACTION_ID_LEN);
+
+    // Store the actual allocation size
+    pStunPacket->allocationSize = allocationSize;
+
+    // Set the attribute array pointer
+    pStunPacket->attributeList = (PStunAttributeHeader*) (pStunPacket + 1);
+
+    // Set the count of the processed attributes only
+    pStunPacket->attributesCount = attributeCount;
+
+    // Set the attribute buffer start
+    pDestAttribute = (PStunAttributeHeader) (pStunPacket->attributeList + attributeCount);
+
+    // Reset the attributes to go over the array and convert
+    pStunAttributeHeader = pStunAttributes;
+
+    // Start packaging the attributes
+    while (((PBYTE) pStunAttributeHeader < (PBYTE) pStunAttributes + pStunPacket->header.messageLength) && i < attributeCount) {
+        // Set the array entry first
+        pStunPacket->attributeList[i++] = pDestAttribute;
+
+        // Copy/Swap tne attribute header
+        pDestAttribute->type = (STUN_ATTRIBUTE_TYPE) getInt16(pStunAttributeHeader->type);
+        pDestAttribute->length = (UINT16) getInt16(pStunAttributeHeader->length);
+
+        // Zero out for before iteration
+        attributeSize = 0;
+
+        // Calculate the padded size
+        paddedLength = (UINT16) ROUND_UP(pDestAttribute->length, 4);
+
+        switch (pDestAttribute->type) {
+
+            case STUN_ATTRIBUTE_TYPE_USERNAME:
+                pStunAttributeUsername = (PStunAttributeUsername) pDestAttribute;
+
+                // Set the padded length
+                pStunAttributeUsername->paddedLength = paddedLength;
+
+                // Set the pointer following the structure
+                pStunAttributeUsername->userName = (PCHAR) (pStunAttributeUsername + 1);
+
+                // Copy the padded user name
+                MEMCPY(pStunAttributeUsername->userName, (PBYTE) pStunAttributeHeader + STUN_ATTRIBUTE_HEADER_LEN,
+                       pStunAttributeUsername->paddedLength);
+                attributeSize = SIZEOF(StunAttributeUsername) + pStunAttributeUsername->paddedLength;
+
+                break;
+
+            case STUN_ATTRIBUTE_TYPE_PRIORITY:
+                pStunAttributePriority = (PStunAttributePriority) pDestAttribute;
+
+                pStunAttributePriority->priority = (UINT32) getInt32(*(PUINT32) ((PBYTE) pStunAttributeHeader + STUN_ATTRIBUTE_HEADER_LEN));
+
+                attributeSize = SIZEOF(StunAttributePriority);
+
+                break;
+
 
             default:
                 // Skip over the unknown attributes

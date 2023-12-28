@@ -110,7 +110,7 @@ StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
     {
         result = STUN_RESULT_BAD_PARAM;
     }
-
+        
     if( result == STUN_RESULT_OK )
     {
         if( REMAINING_BUFFER_LENGTH( pCtx ) < STUN_MESSAGE_HEADER_LENGTH )
@@ -122,18 +122,19 @@ StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
     if( result == STUN_RESULT_OK )
     {
         SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), StunMessageTypeToCode( stunPacketType ));
-
+        
         /* Message length is updated in the end. */
         SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_MESSAGE_LENGTH_OFFSET ] ),
                           0 );
-
+        
         SET_UINT32( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_MAGIC_COOKIE_OFFSET ] ),
                           STUN_HEADER_MAGIC_COOKIE );
-
+        
         memcpy( &( pCtx->pStart[ pCtx->currentIndex + STUN_HEADER_TRANSACTION_ID_OFFSET ] ),
                           pTransactionId, STUN_TRANSACTION_ID_LENGTH );
-
+        
         pCtx->currentIndex += STUN_MESSAGE_HEADER_LENGTH;
+        
     }
 
     return result;
@@ -176,7 +177,7 @@ StunResult_t StunSerializer_AddAttributePriority( StunSerializerContext_t * pCtx
 /*-----------------------------------------------------------*/
 
 StunResult_t StunSerializer_AddAttributeUserName( StunSerializerContext_t * pCtx,
-                                                    char * userName )
+                                                    char * userName, uint16_t usernameLen )
 {
     StunResult_t result = STUN_RESULT_OK;
     uint16_t length, paddedLength;
@@ -188,8 +189,7 @@ StunResult_t StunSerializer_AddAttributeUserName( StunSerializerContext_t * pCtx
         result = STUN_RESULT_BAD_PARAM;
     }
 
-    length = (uint16_t) strlen(userName);
-    paddedLength = ALIGN_SIZE(length);
+    paddedLength = ALIGN_SIZE(usernameLen);
     userNameAttributeLen = paddedLength + STUN_ATTRIBUTE_HEADER_LENGTH ;
 
     if( result == STUN_RESULT_OK )
