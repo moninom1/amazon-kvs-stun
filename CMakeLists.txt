@@ -9,6 +9,7 @@ set(SOURCE_FILES
     source/endianness.c
     source/hmac.c
     amazon-kvs-stun/source/stunSerialiser.c
+    amazon-kvs-stun/source/stunDeserialiser.c
 )
 
 # Set the header files
@@ -19,6 +20,7 @@ set(HEADER_FILES
     source/include/hmac.h
     source/include/stun.h
     amazon-kvs-stun/source/include/stunSerialiser.h
+    amazon-kvs-stun/source/include/stunDeserialiser.h
     amazon-kvs-stun/source/include/stunDataTypes.h
     
 )

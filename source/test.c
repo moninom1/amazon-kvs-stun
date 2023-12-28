@@ -6,6 +6,7 @@
  */
 
 #include "stunSerialiser.h"
+#include "stunDeserialiser.h"
 #include "stunDataTypes.h"
 #include "commondefs.h"
 #include "stun.h"
@@ -160,14 +161,16 @@ int oldTest()
 int testSerialisation()
 {
     StunSerializerContext_t stunContext;
+    StunDeserializerContext_t stunDContext;
     size_t bufferLength=50;
     uint8_t * pBuffer;
-    uint32_t priority = 10;
+    uint32_t priority = 10, priorityD;
     const StunHeader_t stunHeader;
     const uint8_t * pStunMessage;
     size_t stunMessageLength;
     uint8_t transactionId[STUN_TRANSACTION_ID_LEN];
-    char *userName = "Monika";
+    char *userName = "Monika", *userNameD;
+    uint16_t usernameLen;
 
     memcpy(transactionId, (PBYTE) "ABCDEFGHIJKL", STUN_TRANSACTION_ID_LEN);
 
@@ -176,6 +179,8 @@ int testSerialisation()
 
     pBuffer = malloc(bufferLength);
     EXPECT_NE( pBuffer, NULL );
+
+    /* --------------------- Serialisation --------------------- */
 
     EXPECT_EQ(STATUS_SUCCESS, StunSerializer_Init( &stunContext, pBuffer, bufferLength ));
 
@@ -190,6 +195,35 @@ int testSerialisation()
     printf("Serialised Message Length %ld\n",stunMessageLength );
     printBuffer(pBuffer, stunMessageLength);
 
+
+    /* --------------------- Deserialisation --------------------- */
+
+    EXPECT_EQ( STATUS_SUCCESS, StunDeserializer_Init( &stunDContext, pStunMessage, stunMessageLength));
+    printf("\nDeserialised values :\n\n");
+    EXPECT_EQ( STATUS_SUCCESS, StunDeserializer_GetHeader( &stunDContext, &stunHeader ));
+    EXPECT_EQ(stunHeader.messageLength, stunMessageLength - 20);
+    EXPECT_EQ(stunHeader.stunMessageType, STUN_MESSAGE_TYPE_BINDING_REQUEST);
+    EXPECT_EQ( 0, memcmp(stunHeader.transactionId, transactionId, STUN_TRANSACTION_ID_LENGTH));
+    printf("Header messageLength = %d, stunMessageType %d\n", stunHeader.messageLength, stunHeader.stunMessageType);
+
+    EXPECT_EQ( STATUS_SUCCESS, StunDeserializer_GetAttributePriority(&stunDContext, &priorityD));
+    printf("Priority = %d\n", priorityD);
+    EXPECT_EQ(priority, priorityD);
+
+    EXPECT_EQ( STATUS_SUCCESS, StunDeserializer_GetAttributeUserName(&stunDContext, &userNameD, &usernameLen));
+    EXPECT_EQ(8, usernameLen); // rounded size
+    printf("UserName Length = %d\nUserName : ", usernameLen);
+    for(int i=0;i<usernameLen;i++)
+    {
+        printf("%x ",userNameD[i]);
+    }
+
+    // Expected to be not found
+    char *try;
+    EXPECT_EQ( STATUS_NO_ATTRIBUTE_FOUND, StunDeserializer_FindAttribute ( &stunDContext, STUN_ATTRIBUTE_FINGERPRINT, &try));
+
+    return fail;
+
 }
 int main()
 {
@@ -197,7 +231,7 @@ int main()
     
     status = testSerialisation();
     if(status == 1)
-        printf("\n ----Result : Test Failed----\n\n");
+        printf("\n\n----Result : Test Failed----\n\n");
     else
-        printf("\n ----Result : Test Passed----\n\n");
+        printf("\n\n----Result : Test Passed----\n\n");
 }
