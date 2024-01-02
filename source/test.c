@@ -81,7 +81,7 @@ int oldTest()
     EXPECT_EQ(pStunPacket->attributeList[0]->type, STUN_ATTRIBUTE_TYPE_PRIORITY);
     EXPECT_EQ(10, ((PStunAttributePriority) pStunPacket->attributeList[0])->priority);
     EXPECT_EQ(pStunPacket->attributeList[1]->type, STUN_ATTRIBUTE_TYPE_USERNAME);
-    EXPECT_EQ(0, MEMCMP("monika", ((PStunAttributeUsername) pStunPacket->attributeList[1])->userName, 3));
+    EXPECT_EQ(0, MEMCMP("monika", ((PStunAttributeUsername) pStunPacket->attributeList[1])->userName, 6));
 
     // Serialize it
     EXPECT_EQ(STATUS_SUCCESS,
@@ -94,12 +94,11 @@ int oldTest()
 
     printBuffer(pBuffer,size );
 
-    //De-serialize it back again - TODO
+    //De-serialize it back again
     EXPECT_EQ( STATUS_SUCCESS,
-         deserializeStunPacket(pBuffer, size, (PBYTE) TEST_STUN_PASSWORD, (UINT32) STRLEN(TEST_STUN_PASSWORD) * SIZEOF(CHAR), &pSerializedStunPacket));
+         deserializeStunPacket_new(pBuffer, size, (PBYTE) TEST_STUN_PASSWORD, (UINT32) STRLEN(TEST_STUN_PASSWORD) * SIZEOF(CHAR), &pSerializedStunPacket));
 
     EXPECT_EQ(pSerializedStunPacket->header.magicCookie, STUN_HEADER_MAGIC_COOKIE);
-    printf("pSerializedStunPacket->header.messageLength %d\n",pSerializedStunPacket->header.messageLength);
     EXPECT_EQ(pSerializedStunPacket->header.messageLength, 20);
     EXPECT_EQ(pSerializedStunPacket->header.stunMessageType, STUN_PACKET_TYPE_BINDING_REQUEST);
 
@@ -108,7 +107,8 @@ int oldTest()
     EXPECT_EQ(pSerializedStunPacket->attributeList[0]->type, STUN_ATTRIBUTE_TYPE_PRIORITY);
     EXPECT_EQ(10, ((PStunAttributePriority) pSerializedStunPacket->attributeList[0])->priority);
     EXPECT_EQ(pSerializedStunPacket->attributeList[1]->type, STUN_ATTRIBUTE_TYPE_USERNAME);
-    EXPECT_EQ(0, MEMCMP("monika", ((PStunAttributeUsername) pSerializedStunPacket->attributeList[1])->userName, 3));
+    EXPECT_EQ(pSerializedStunPacket->attributeList[1]->length, 8);
+    EXPECT_EQ(0, MEMCMP("monika", ((PStunAttributeUsername) pSerializedStunPacket->attributeList[1])->userName, 6));
 
     EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pStunPacket));
     EXPECT_EQ(STATUS_SUCCESS, freeStunPacket(&pSerializedStunPacket));
@@ -124,7 +124,7 @@ int testSerialisation()
     size_t bufferLength=50;
     uint8_t * pBuffer;
     uint32_t priority = 10, priorityD;
-    const StunHeader_t stunHeader;
+    StunHeader_t stunHeader;
     const uint8_t * pStunMessage;
     size_t stunMessageLength;
     uint8_t transactionId[STUN_TRANSACTION_ID_LEN];

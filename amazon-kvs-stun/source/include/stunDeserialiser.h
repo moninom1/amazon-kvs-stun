@@ -21,6 +21,8 @@ StunResult_t StunDeserializer_Init( StunDeserializerContext_t * pCtx,
 
 StunResult_t StunDeserializer_GetHeader( StunDeserializerContext_t * pCtx, StunHeader_t *pStunHeader );
 
+StunResult_t StunDeserializer_GetNextAttribute ( StunDeserializerContext_t * pCtx, uint8_t * pType,
+                                                                 const char ** pValue, size_t * pValueLength);
 
 StunResult_t StunDeserializer_FindAttribute ( StunDeserializerContext_t * pCtx,
                                              StunMessageType_t stunMessageType,

@@ -96,6 +96,47 @@ StunResult_t StunDeserializer_GetHeader( StunDeserializerContext_t * pCtx, StunH
     {
         memcpy(pStunHeader->transactionId, &(pBuffer[currentIndex + STUN_HEADER_ID_OFFSET]), STUN_TRANSACTION_ID_LENGTH);
     }
+
+    pCtx->currentIndex += STUN_MESSAGE_HEADER_LENGTH;
+    return result;
+}
+
+StunResult_t StunDeserializer_GetNextAttribute ( StunDeserializerContext_t * pCtx, uint8_t * pType,
+                                                                 const char ** pValue, size_t * pValueLength)
+{
+    StunResult_t result = STUN_RESULT_OK;
+    uint16_t type, msgLen, attributeLen;
+    uint16_t attributeFound = 0;
+    const char *pAttributeBuffer;
+
+    if( ( pCtx == NULL ) ||
+        ( pType == NULL ) ||
+        ( pValue == NULL ) ||
+        ( pValueLength == NULL ) )
+    {
+        result = STUN_RESULT_BAD_PARAM;
+    }
+
+    pAttributeBuffer = pCtx->pStart;
+
+    msgLen = pCtx->totalLength;
+
+    if(msgLen == 0 || pAttributeBuffer == NULL)
+    {
+        //No more attributes present;
+        result = STATUS_NO_ATTRIBUTE_FOUND;
+    }
+
+    if( result == STUN_RESULT_OK)
+    {
+        GET_UINT16(*pType , &( pCtx->pStart[ pCtx->currentIndex ] ));
+        GET_UINT16( *pValueLength, &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ));
+        *pValue = &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] );
+
+        pCtx->currentIndex += STUN_ATTRIBUTE_HEADER_LENGTH + *pValueLength ;
+
+    }
+    
     return result;
 }
 
@@ -104,7 +145,7 @@ StunResult_t StunDeserializer_FindAttribute ( StunDeserializerContext_t * pCtx, 
     StunResult_t result = STUN_RESULT_OK;
     uint16_t type, msgLen, attributeLen, currentIndex = 0;
     uint16_t attributeFound = 0;
-    const char *pAttributeBuffer;
+    char *pAttributeBuffer;
 
     if( ( pCtx == NULL ) )
     {
@@ -144,14 +185,13 @@ StunResult_t StunDeserializer_FindAttribute ( StunDeserializerContext_t * pCtx, 
             currentIndex += STUN_ATTRIBUTE_HEADER_LENGTH + attributeLen;
         }
     }
-    
+
     if( attributeFound == 0 )
         result = STATUS_NO_ATTRIBUTE_FOUND;
-    
+
     return result;
 
 }
-
 
 StunResult_t StunDeserializer_GetAttributePriority ( StunDeserializerContext_t * pCtx,
                                                         uint32_t * priority )
