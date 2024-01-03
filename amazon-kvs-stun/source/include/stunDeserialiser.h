@@ -24,16 +24,6 @@ StunResult_t StunDeserializer_GetHeader( StunDeserializerContext_t * pCtx, StunH
 StunResult_t StunDeserializer_GetNextAttribute ( StunDeserializerContext_t * pCtx, uint8_t * pType,
                                                                  const char ** pValue, size_t * pValueLength);
 
-StunResult_t StunDeserializer_FindAttribute ( StunDeserializerContext_t * pCtx,
-                                             StunMessageType_t stunMessageType,
-                                                char ** ppAttribute);
-
-StunResult_t StunDeserializer_GetAttributePriority ( StunDeserializerContext_t * pCtx,
-                                                        uint32_t *priority );
-
-StunResult_t StunDeserializer_GetAttributeUserName( StunDeserializerContext_t * pCtx,
-                                                    char ** name, uint16_t *nameLength );
-
 /* StunSerializer_GetAttributeFingerprint,
  * StunSerializer_GetAttributeIntegrity,
  * StunSerializer_GetAttributeRealm,

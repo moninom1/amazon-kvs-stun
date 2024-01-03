@@ -165,21 +165,44 @@ int testSerialisation()
     EXPECT_EQ( 0, memcmp(stunHeader.transactionId, transactionId, STUN_TRANSACTION_ID_LENGTH));
     printf("Header messageLength = %d, stunMessageType %d\n", stunHeader.messageLength, stunHeader.stunMessageType);
 
-    EXPECT_EQ( STATUS_SUCCESS, StunDeserializer_GetAttributePriority(&stunDContext, &priorityD));
+
+    StunResult_t result = STUN_RESULT_OK;
+
+    while(stunDContext.currentIndex < stunDContext.totalLength )
+    {
+        uint8_t type;
+        const char *value;
+        size_t valueLength;
+
+        result = StunDeserializer_GetNextAttribute(&stunDContext, &type, &value, &valueLength);
+
+        if( result == STATUS_SUCCESS)
+        {
+            switch (type) {
+                case STUN_ATTRIBUTE_TYPE_USERNAME:
+                    usernameLen = valueLength;
+                    memcpy(userNameD, value, valueLength);
+
+                    break;
+
+                case STUN_ATTRIBUTE_TYPE_PRIORITY:
+
+                    priorityD = (UINT32) getInt32(*(PINT32) value);
+                    break;
+
+                default:
+                    // Skip over the unknown attributes
+                    break;
+            }
+        }
+
+    }
     printf("Priority = %d\n", priorityD);
     EXPECT_EQ(priority, priorityD);
-
-    EXPECT_EQ( STATUS_SUCCESS, StunDeserializer_GetAttributeUserName(&stunDContext, &userNameD, &usernameLen));
     EXPECT_EQ(8, usernameLen); // rounded size
     printf("UserName Length = %d\nUserName : ", usernameLen);
-    for(int i=0;i<usernameLen;i++)
-    {
-        printf("%x ",userNameD[i]);
-    }
-
-    // Expected to be not found
-    char *try;
-    EXPECT_EQ( STATUS_NO_ATTRIBUTE_FOUND, StunDeserializer_FindAttribute ( &stunDContext, STUN_ATTRIBUTE_FINGERPRINT, &try));
+    EXPECT_EQ( 0, memcmp(userName, userNameD, usernameLen));
+    printBuffer(userNameD, usernameLen);
 
     return fail;
 
