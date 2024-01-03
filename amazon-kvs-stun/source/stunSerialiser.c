@@ -141,60 +141,23 @@ StunResult_t StunSerializer_AddHeader( StunSerializerContext_t * pCtx,
 }
 /*-----------------------------------------------------------*/
 
-StunResult_t StunSerializer_AddAttributePriority( StunSerializerContext_t * pCtx,
-                                                  uint32_t priority )
-{
-    StunResult_t result = STUN_RESULT_OK;
-
-    if( ( pCtx == NULL ) )
-    {
-        result = STUN_RESULT_BAD_PARAM;
-    }
-
-    if( result == STUN_RESULT_OK )
-    {
-        if( REMAINING_BUFFER_LENGTH( pCtx ) < ( sizeof( priority ) + STUN_ATTRIBUTE_HEADER_LENGTH ) )
-        {
-            result = STUN_RESULT_OUT_OF_MEMORY;
-        }
-    }
-
-    if( result == STUN_RESULT_OK )
-    {
-        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), STUN_ATTRIBUTE_PRIORITY_TYPE );
-
-        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
-                          sizeof( priority ) );
-
-        SET_UINT32( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ),
-                           priority );
-
-        pCtx->currentIndex += ( sizeof( priority ) + STUN_ATTRIBUTE_HEADER_LENGTH );
-    }
-
-    return result;
-}
-/*-----------------------------------------------------------*/
-
-StunResult_t StunSerializer_AddAttributeUserName( StunSerializerContext_t * pCtx,
-                                                    char * userName, uint16_t usernameLen )
+StunResult_t StunSerializer_addAttribute( StunSerializerContext_t * pCtx, uint8_t type, char * pValue, size_t valueLength )
 {
     StunResult_t result = STUN_RESULT_OK;
     uint16_t length, paddedLength;
-    uint32_t userNameAttributeLen;
+    uint32_t attributeLen;
 
-    if( ( pCtx == NULL ) ||
-         ( userName == NULL ) )
+    if( ( pCtx == NULL ) || ( pValue == NULL ) )
     {
         result = STUN_RESULT_BAD_PARAM;
     }
 
-    paddedLength = ALIGN_SIZE(usernameLen);
-    userNameAttributeLen = paddedLength + STUN_ATTRIBUTE_HEADER_LENGTH ;
+    paddedLength = ALIGN_SIZE(valueLength);
+    attributeLen = paddedLength + STUN_ATTRIBUTE_HEADER_LENGTH ;
 
     if( result == STUN_RESULT_OK )
     {
-        if( REMAINING_BUFFER_LENGTH( pCtx ) < userNameAttributeLen )
+        if( REMAINING_BUFFER_LENGTH( pCtx ) < attributeLen )
         {
             result = STUN_RESULT_OUT_OF_MEMORY;
         }
@@ -202,64 +165,57 @@ StunResult_t StunSerializer_AddAttributeUserName( StunSerializerContext_t * pCtx
 
     if( result == STUN_RESULT_OK )
     {
-        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), STUN_ATTRIBUTE_USERNAME_TYPE );
+        SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ), type );
 
         SET_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
                           paddedLength );
 
-        memcpy( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ), userName, paddedLength);
+        memcpy( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ), pValue, valueLength);
 
-        pCtx->currentIndex += paddedLength + STUN_ATTRIBUTE_HEADER_LENGTH;
+        pCtx->currentIndex += attributeLen;
     }
-     checkFingerprintIntegrityFound( &(pCtx->pStart[STUN_MESSAGE_HEADER_LENGTH]) , pCtx->currentIndex);
 
     return result;
-}
-
-/*-----------------------------------------------------------*/
-
-StunResult_t checkFingerprintIntegrityFound( const char *pAttributeBuffer , size_t len)
-{
-    StunResult_t result = STUN_RESULT_OK;
-    uint16_t type, attributeLen;
-    int currentIndex = 0;
-
-    //Atribute header is present
-    while( currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH < len)
-    {
-        //Get Attribute Type
-        GET_UINT16(type, &(pAttributeBuffer[currentIndex]));
-        GET_UINT16(attributeLen, &(pAttributeBuffer[currentIndex+STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET]));
-
-        if(type == 0)
-        {
-            //No more attribute
-            break;
-        }
-
-        if(type == STUN_ATTRIBUTE_FINGERPRINT || type == STUN_ATTRIBUTE_MESSAGE_INTEGRITY)
-        {
-            result = STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY;
-            break;
-        }
-        currentIndex += STUN_ATTRIBUTE_HEADER_LENGTH + attributeLen;
-
-    }
-    return result;
-
 }
 
 StunResult_t StunSerializer_Finalize( StunSerializerContext_t * pCtx,
                                       const uint8_t ** pStunMessage,
-                                      size_t * pStunMessageLength )
+                                      size_t * pStunMessageLength,
+                                      char* msgIntegrity,
+                                      char* fingerprint)
 {
     StunResult_t result = STUN_RESULT_OK;
+    uint16_t length;
 
     if( ( pCtx == NULL ) ||
-        ( pStunMessageLength == NULL ) )
+        ( pStunMessageLength == NULL ))
     {
         result = STUN_RESULT_BAD_PARAM;
     }
+
+    if(result == STUN_RESULT_OK && msgIntegrity)
+    {
+        length = STUN_HMAC_VALUE_LENGTH;
+        if( strlen(msgIntegrity) != length)
+        {
+            result = STUN_RESULT_BAD_PARAM;
+        }
+        else
+            StunSerializer_addAttribute( pCtx, STUN_ATTRIBUTE_MESSAGE_INTEGRITY_TYPE, msgIntegrity, length);
+
+    }
+    if(result == STUN_RESULT_OK && fingerprint)
+    {
+        length = STUN_ATTRIBUTE_FINGERPRINT_LENGTH;
+        if( strlen(msgIntegrity) != length)
+        {
+            result = STUN_RESULT_BAD_PARAM;
+        }
+        else
+            StunSerializer_addAttribute( pCtx, STUN_ATTRIBUTE_MESSAGE_INTEGRITY_TYPE, fingerprint, length);
+
+    }
+    
 
     if( result == STUN_RESULT_OK )
     {

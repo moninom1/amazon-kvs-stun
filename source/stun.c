@@ -658,7 +658,7 @@ STATUS serializeStunPacket_new(PStunPacket pStunPacket, PBYTE password, UINT32 p
 
                 CHK(!fingerprintFound && !messaageIntegrityFound, STATUS_STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY);
 
-                StunSerializer_AddAttributeUserName(&stunContext,(char *) (pStunAttributeUsername + 1 ), pStunAttributeUsername->paddedLength);
+                StunSerializer_addAttribute(&stunContext, STUN_ATTRIBUTE_TYPE_USERNAME, ( (pStunAttributeUsername + 1 )), pStunAttributeUsername->paddedLength);
 
                 break;
 
@@ -668,7 +668,7 @@ STATUS serializeStunPacket_new(PStunPacket pStunPacket, PBYTE password, UINT32 p
 
                     CHK(!fingerprintFound && !messaageIntegrityFound, STATUS_STUN_ATTRIBUTES_AFTER_FINGERPRINT_MESSAGE_INTEGRITY);
 
-                    StunSerializer_AddAttributePriority(&stunContext, pStunAttributePriority->priority);
+                    StunSerializer_addAttribute(&stunContext, STUN_ATTRIBUTE_TYPE_PRIORITY,(char *) ( &( pStunAttributePriority->priority)), sizeof(pStunAttributePriority->priority));
 
                     break;
 
@@ -686,7 +686,7 @@ STATUS serializeStunPacket_new(PStunPacket pStunPacket, PBYTE password, UINT32 p
             //StunSerializer_AddAttributeFingerprint
         }
 
-        StunSerializer_Finalize( &stunContext, &pStunMessage, &stunMessageLength );
+        StunSerializer_Finalize( &stunContext, &pStunMessage, &stunMessageLength ,NULL, NULL );
     }
     
 CleanUp:
@@ -1360,7 +1360,7 @@ STATUS deserializeStunPacket_new(PBYTE pStunBuffer, UINT32 bufferSize, PBYTE pas
         size_t valueLength;
 
         retStatus = StunDeserializer_GetNextAttribute(&stunDContext, &type, &value, &valueLength);
-        printf("Type %x , Length - %x\n", type, valueLength);
+        printf("Type %x , Length - %lx\n", type, valueLength);
 
         if( retStatus == STATUS_SUCCESS)
         {

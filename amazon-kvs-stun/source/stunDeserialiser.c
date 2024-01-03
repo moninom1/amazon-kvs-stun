@@ -33,6 +33,8 @@
 #define GET_UINT16( val, pSrc )   ( val = *((uint16_t*)(pSrc)))
 #define GET_UINT32( val, pSrc )   ( val = *((uint32_t*)(pSrc)) )
 
+#define REMAINING_BUFFER_LENGTH( pCtx ) ( ( pCtx )->totalLength - ( pCtx )->currentIndex )
+
 /*
        0                   1                   2                   3
        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -116,15 +118,10 @@ StunResult_t StunDeserializer_GetNextAttribute ( StunDeserializerContext_t * pCt
     {
         result = STUN_RESULT_BAD_PARAM;
     }
-
-    pAttributeBuffer = pCtx->pStart;
-
-    msgLen = pCtx->totalLength;
-
-    if(msgLen == 0 || pAttributeBuffer == NULL)
+    
+    if( REMAINING_BUFFER_LENGTH( pCtx ) < STUN_ATTRIBUTE_HEADER_LENGTH )
     {
-        //No more attributes present;
-        result = STATUS_NO_ATTRIBUTE_FOUND;
+        result = STUN_RESULT_OUT_OF_MEMORY;
     }
 
     if( result == STUN_RESULT_OK)
@@ -134,7 +131,6 @@ StunResult_t StunDeserializer_GetNextAttribute ( StunDeserializerContext_t * pCt
         *pValue = &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] );
 
         pCtx->currentIndex += STUN_ATTRIBUTE_HEADER_LENGTH + *pValueLength ;
-
     }
 
     return result;
