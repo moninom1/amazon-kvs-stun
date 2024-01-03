@@ -96,6 +96,7 @@ typedef struct StunContext
     size_t totalLength;
     size_t currentIndex;
 } StunContext_t;
+
 typedef struct StunHeader
 {
     StunMessageType_t messageType;
