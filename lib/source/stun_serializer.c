@@ -5,6 +5,53 @@
 /* API includes. */
 #include "stun_serializer.h"
 
+static StunResult_t AddAttributeGeneric( StunContext_t * pCtx,
+                                         const StunAttribute_t * pAttribute );
+/*-----------------------------------------------------------*/
+
+static StunResult_t AddAttributeGeneric( StunContext_t * pCtx,
+                                         const StunAttribute_t * pAttribute )
+{
+    StunResult_t result = STUN_RESULT_OK;
+    uint16_t attributeLengthPadded;
+
+    if( ( pCtx == NULL ) ||
+        ( pAttribute == NULL ) )
+    {
+        result = STUN_RESULT_BAD_PARAM;
+    }
+
+    if( result == STUN_RESULT_OK )
+    {
+        attributeLengthPadded = ALIGN_SIZE_TO_WORD( pAttribute->attributeValueLength );
+
+        if( REMAINING_LENGTH( pCtx ) < STUN_ATTRIBUTE_TOTAL_LENGTH( attributeLengthPadded ) )
+        {
+            result = STUN_RESULT_OUT_OF_MEMORY;
+        }
+    }
+
+    if( result == STUN_RESULT_OK )
+    {
+        WRITE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ),
+                      pAttribute->attributeType );
+
+        WRITE_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
+                      attributeLengthPadded );
+
+        memcpy( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ),
+                pAttribute->pAttributeValue,
+                pAttribute->attributeValueLength );
+
+        /* Zero out the padded bytes. */
+
+        pCtx->currentIndex += STUN_ATTRIBUTE_TOTAL_LENGTH( attributeLengthPadded );
+    }
+
+    return result;
+}
+/*-----------------------------------------------------------*/
+
 StunResult_t StunSerializer_Init( StunContext_t * pCtx,
                                   uint8_t * pBuffer,
                                   size_t bufferLength )
@@ -74,34 +121,15 @@ StunResult_t StunSerializer_AddHeader( StunContext_t * pCtx,
 StunResult_t StunSerializer_AddAttributePriority( StunContext_t * pCtx,
                                                   uint32_t priority )
 {
-    StunResult_t result = STUN_RESULT_OK;
+    StunResult_t result;
+    StunAttribute_t attribute;
 
-    if( pCtx == NULL )
-    {
-        result = STUN_RESULT_BAD_PARAM;
-    }
+    attribute.attributeType = STUN_ATTRIBUTE_TYPE_PRIORITY;
+    attribute.pAttributeValue = ( uint8_t * )&( priority );
+    attribute.attributeValueLength = sizeof( priority );
 
-    if( result == STUN_RESULT_OK )
-    {
-        if( REMAINING_LENGTH( pCtx ) < STUN_ATTRIBUTE_TOTAL_LENGTH( sizeof( priority ) ) )
-        {
-            result = STUN_RESULT_OUT_OF_MEMORY;
-        }
-    }
-
-    if( result == STUN_RESULT_OK )
-    {
-        WRITE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ),
-                      STUN_ATTRIBUTE_TYPE_PRIORITY );
-
-        WRITE_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
-                      sizeof( priority ) );
-
-        WRITE_UINT32( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ),
-                      priority );
-
-        pCtx->currentIndex += STUN_ATTRIBUTE_TOTAL_LENGTH( sizeof( priority ) );
-    }
+    result = AddAttributeGeneric( pCtx,
+                                  &( attribute ) );
 
     return result;
 }
@@ -111,40 +139,15 @@ StunResult_t StunSerializer_AddAttributeUsername( StunContext_t * pCtx,
                                                   const char * pUsername,
                                                   uint16_t usernameLength )
 {
-    StunResult_t result = STUN_RESULT_OK;
-    uint16_t usernameLengthPadded;
+    StunResult_t result;
+    StunAttribute_t attribute;
 
-    if( ( pCtx == NULL ) ||
-        ( pUsername == NULL ) ||
-        ( usernameLength == 0 ) )
-    {
-        result = STUN_RESULT_BAD_PARAM;
-    }
+    attribute.attributeType = STUN_ATTRIBUTE_TYPE_USERNAME;
+    attribute.pAttributeValue = ( uint8_t * ) pUsername;
+    attribute.attributeValueLength = usernameLength;
 
-    if( result == STUN_RESULT_OK )
-    {
-        usernameLengthPadded = ALIGN_SIZE_TO_WORD( usernameLength );
-
-        if( REMAINING_LENGTH( pCtx ) < STUN_ATTRIBUTE_TOTAL_LENGTH( usernameLengthPadded ) )
-        {
-            result = STUN_RESULT_OUT_OF_MEMORY;
-        }
-    }
-
-    if( result == STUN_RESULT_OK )
-    {
-        WRITE_UINT16( &( pCtx->pStart[ pCtx->currentIndex ] ),
-                      STUN_ATTRIBUTE_TYPE_USERNAME );
-
-        WRITE_UINT16( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ),
-                      usernameLengthPadded );
-
-        memcpy( &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] ),
-                pUsername,
-                usernameLengthPadded );
-
-        pCtx->currentIndex += STUN_ATTRIBUTE_TOTAL_LENGTH( usernameLengthPadded );
-    }
+    result = AddAttributeGeneric( pCtx,
+                                  &( attribute ) );
 
     return result;
 }

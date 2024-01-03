@@ -75,18 +75,18 @@ typedef enum StunResult
 
 typedef enum StunMessageType
 {
-    STUN_MESSAGE_TYPE_BINDING_REQUEST = 0x0001,
-    STUN_MESSAGE_TYPE_BINDING_SUCCESS_RESPONSE = 0x0101,
-    STUN_MESSAGE_TYPE_BINDING_FAILURE_RESPONSE = 0x0111,
-    STUN_MESSAGE_TYPE_BINDING_INDICATION = 0x0011
+    STUN_MESSAGE_TYPE_BINDING_REQUEST           = 0x0001,
+    STUN_MESSAGE_TYPE_BINDING_SUCCESS_RESPONSE  = 0x0101,
+    STUN_MESSAGE_TYPE_BINDING_FAILURE_RESPONSE  = 0x0111,
+    STUN_MESSAGE_TYPE_BINDING_INDICATION        = 0x0011
 } StunMessageType_t;
 
 typedef enum StunAttributeType
 {
-    STUN_ATTRIBUTE_TYPE_USERNAME = 0x0006,
-    STUN_ATTRIBUTE_TYPE_MESSAGE_INTEGRITY = 0x0008,
-    STUN_ATTRIBUTE_TYPE_PRIORITY = 0x0024,
-    STUN_ATTRIBUTE_TYPE_FINGERPRINT = 0x8028,
+    STUN_ATTRIBUTE_TYPE_USERNAME            = 0x0006,
+    STUN_ATTRIBUTE_TYPE_MESSAGE_INTEGRITY   = 0x0008,
+    STUN_ATTRIBUTE_TYPE_PRIORITY            = 0x0024,
+    STUN_ATTRIBUTE_TYPE_FINGERPRINT         = 0x8028,
 } StunAttributeType_t;
 /*-----------------------------------------------------------*/
 
@@ -96,13 +96,19 @@ typedef struct StunContext
     size_t totalLength;
     size_t currentIndex;
 } StunContext_t;
-
 typedef struct StunHeader
 {
     StunMessageType_t messageType;
     uint16_t messageLength;
     uint8_t transactionId[ STUN_HEADER_TRANSACTION_ID_LENGTH ];
 } StunHeader_t;
+
+typedef struct StunAttribute
+{
+    StunAttributeType_t attributeType;
+    uint8_t * pAttributeValue;
+    uint16_t attributeValueLength;
+} StunAttribute_t;
 /*-----------------------------------------------------------*/
 
 #endif /* STUN_DATA_TYPES_H */

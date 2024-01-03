@@ -12,16 +12,12 @@ StunResult_t StunDeserializer_GetHeader( StunContext_t * pCtx,
                                          StunHeader_t * pStunHeader );
 
 StunResult_t StunDeserializer_GetNextAttribute( StunContext_t * pCtx,
-                                                StunAttributeType_t * pAttributeType,
-                                                const uint8_t ** pAttributeValue,
-                                                uint16_t * pAttributeValueLength );
+                                                StunAttribute_t * pAttribute );
 
-StunResult_t StunDeserializer_ParseAttributePriority( const uint8_t * pAttributeValue,
-                                                      uint16_t attributeLength,
+StunResult_t StunDeserializer_ParseAttributePriority( const StunAttribute_t * pAttribute,
                                                       uint32_t * pPriority );
 
-StunResult_t StunDeserializer_ParseAttributeUsername( const uint8_t * pAttributeValue,
-                                                      uint16_t attributeLength,
+StunResult_t StunDeserializer_ParseAttributeUsername( const StunAttribute_t * pAttribute,
                                                       const char ** pUsername,
                                                       uint16_t * pUsernameLength );
 

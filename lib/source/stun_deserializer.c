@@ -78,17 +78,13 @@ StunResult_t StunDeserializer_GetHeader( StunContext_t * pCtx,
 /*-----------------------------------------------------------*/
 
 StunResult_t StunDeserializer_GetNextAttribute( StunContext_t * pCtx,
-                                                StunAttributeType_t * pAttributeType,
-                                                const uint8_t ** pAttributeValue,
-                                                uint16_t * pAttributeValueLength )
+                                                StunAttribute_t * pAttribute )
 {
     StunResult_t result = STUN_RESULT_OK;
     uint16_t attributeType;
 
     if( ( pCtx == NULL ) ||
-        ( pAttributeType == NULL ) ||
-        ( pAttributeValue == NULL ) ||
-        ( pAttributeValueLength == NULL ) )
+        ( pAttribute == NULL ) )
     {
         result = STUN_RESULT_BAD_PARAM;
     }
@@ -105,35 +101,35 @@ StunResult_t StunDeserializer_GetNextAttribute( StunContext_t * pCtx,
     {
         READ_UINT16( attributeType,
                      &( pCtx->pStart[ pCtx->currentIndex ] ) );
-        *pAttributeType = ( StunAttributeType_t ) attributeType;
+        pAttribute->attributeType = ( StunAttributeType_t ) attributeType;
 
-        READ_UINT16( *pAttributeValueLength,
+        READ_UINT16( pAttribute->attributeValueLength,
                      &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_LENGTH_OFFSET ] ) );
 
-        *pAttributeValue = &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] );
+        pAttribute->pAttributeValue = &( pCtx->pStart[ pCtx->currentIndex + STUN_ATTRIBUTE_HEADER_VALUE_OFFSET ] );
 
-        pCtx->currentIndex += STUN_ATTRIBUTE_TOTAL_LENGTH( *pAttributeValueLength );
+        pCtx->currentIndex += STUN_ATTRIBUTE_TOTAL_LENGTH( pAttribute->attributeValueLength );
     }
 
     return result;
 }
 /*-----------------------------------------------------------*/
 
-StunResult_t StunDeserializer_ParseAttributePriority( const uint8_t * pAttributeValue,
-                                                      uint16_t attributeLength,
+StunResult_t StunDeserializer_ParseAttributePriority( const StunAttribute_t * pAttribute,
                                                       uint32_t * pPriority )
 {
     StunResult_t result = STUN_RESULT_OK;
 
-    if( ( pAttributeValue == NULL ) ||
-        ( pPriority == NULL ) )
+    if( ( pAttribute == NULL ) ||
+        ( pPriority == NULL ) ||
+        ( pAttribute->attributeType != STUN_ATTRIBUTE_TYPE_PRIORITY ) )
     {
         result = STUN_RESULT_BAD_PARAM;
     }
 
     if( result == STUN_RESULT_OK )
     {
-        if( attributeLength != sizeof( uint32_t ) )
+        if( pAttribute->attributeValueLength != sizeof( uint32_t ) )
         {
             result = STUN_RESULT_INVALID_ATTRIBUTE_LENGTH;
         }
@@ -141,31 +137,31 @@ StunResult_t StunDeserializer_ParseAttributePriority( const uint8_t * pAttribute
 
     if( result == STUN_RESULT_OK )
     {
-        *pPriority = *( ( uint32_t * ) pAttributeValue );
+        *pPriority = *( ( uint32_t * ) pAttribute->pAttributeValue );
     }
 
     return result;
 }
 /*-----------------------------------------------------------*/
 
-StunResult_t StunDeserializer_ParseAttributeUsername( const uint8_t * pAttributeValue,
-                                                      uint16_t attributeLength,
+StunResult_t StunDeserializer_ParseAttributeUsername( const StunAttribute_t * pAttribute,
                                                       const char ** pUsername,
                                                       uint16_t * pUsernameLength )
 {
     StunResult_t result = STUN_RESULT_OK;
 
-    if( ( pAttributeValue == NULL ) ||
+    if( ( pAttribute == NULL ) ||
         ( pUsername == NULL ) ||
-        ( pUsernameLength == NULL ) )
+        ( pUsernameLength == NULL ) ||
+        ( pAttribute->attributeType != STUN_ATTRIBUTE_TYPE_USERNAME ) )
     {
         result = STUN_RESULT_BAD_PARAM;
     }
 
     if( result == STUN_RESULT_OK )
     {
-        *pUsername = ( const char * ) pAttributeValue;
-        *pUsernameLength = attributeLength;
+        *pUsername = ( const char * ) pAttribute->pAttributeValue;
+        *pUsernameLength = pAttribute->attributeValueLength;
     }
 
     return result;
